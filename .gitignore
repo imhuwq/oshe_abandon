@@ -2,3 +2,6 @@
 
 result
 te.*
+
+*.pyc
+.idea
