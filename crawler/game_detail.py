@@ -1,7 +1,3 @@
-import os
-import re
-import json
-
 from lxml import etree
 
 from crawler.crawler_base import Crawler
@@ -219,12 +215,3 @@ class GameDetailCrawler(Crawler):
         html = etree.HTML(data)
         data = self.parse_all(html)
         return data
-
-    def store(self, data, target):
-        appid = re.findall(r'/(\d+)/$', target)[0]
-        appid = int(appid)
-
-        out_file = os.path.join(self.out_dir, '%s.json' % appid)
-
-        with open(out_file, 'w') as f:
-            json.dump(data, f)

@@ -8,9 +8,6 @@ class GameIndexCrawler(Crawler):
         self.base = 'http://store.steampowered.com/search/?sort_by=Released_DESC'
         super(GameIndexCrawler, self).__init__(targets, *args, **kwargs)
 
-    def store(self, data, target):
-        pass
-
     def parse(self, data):
         html = etree.HTML(data)
         pagination = html.xpath('//div[@class="search_pagination_right"]')[-1]
@@ -20,3 +17,4 @@ class GameIndexCrawler(Crawler):
         for page in range(1, last_page + 1):
             result = '%s&page=%d' % (self.base, page)
             self.results.append(result)
+        return self.results

@@ -7,9 +7,11 @@ from concurrent import futures
 
 import requests
 
+from storer.sa_store import SqlalchemyStore
+
 
 class Crawler:
-    def __init__(self, targets=None, workers=4):
+    def __init__(self, targets=None, workers=4, storer_cls=None):
 
         self.targets = set(targets) if targets else set()
 
@@ -29,11 +31,9 @@ class Crawler:
         self.log_file = '%s.log' % self.timestamp
 
         cur_dir = os.path.abspath(os.path.dirname(__file__))
-        role_dir = os.path.join(cur_dir, 'result', self.__class__.__name__)
-
         self.log_file = os.path.join(cur_dir, '%s.log' % self.timestamp)
-        self.out_dir = role_dir
-        os.makedirs(self.out_dir, exist_ok=True)
+
+        self.storer_cls = storer_cls or SqlalchemyStore
 
     def strip_strings(self, strings):
         result = []
@@ -74,11 +74,14 @@ class Crawler:
         return data
 
     def store(self, data, target):
-        raise NotImplementedError
+        store = self.storer_cls()
+        store.store(self.__class__.__name__, target, data)
 
     def task_chain(self, target):
         raw = self.crawl(target)
         data = self.parse(raw)
+        if data is None:
+            data = self.results
         self.store(data, target)
 
     def start(self, max_retries=3):
