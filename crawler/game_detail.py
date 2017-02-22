@@ -1,5 +1,16 @@
 from lxml import etree
 
+from enum import Enum
+
+
+class GameStatus(Enum):
+    UNAVAILABLE = -1
+    FREE = 0
+    NORMAL = 1
+    ONSALE = 2
+    COMING = 3
+
+
 from crawler.crawler_base import Crawler
 
 
@@ -14,6 +25,7 @@ class GameDetailCrawler(Crawler):
         texts = self.clean_strings(texts)
         return texts[0]
 
+
     def parse_price(self, ehtml):
         price_unit = {
             '¥': 'CN',
@@ -21,26 +33,47 @@ class GameDetailCrawler(Crawler):
             'HK$': 'HK'
         }
 
-        prices = {}
-        try:
-            price = ehtml.xpath('//div[@class="game_purchase_price price"]/text()')[0]
-            if price:
-                price = c.strip_strings([price])[0]
-                unit, number = price.split(' ')
-
-                current_number = origin_number = number
-                country = price_unit.get(unit)
+        def check_on_sale(html):
+            if ehtml.xpath('//div[@class="game_purchase_price price"]/text()'):
+                price = ehtml.xpath('//div[@class="game_purchase_price price"]/text()')[0]
+                if self.clean_strings([price])[0] == 'Free':
+                    return GameStatus.FREE
+                return GameStatus.NORMAL
+            elif html.xpath('//div[@class="discount_final_price"]/text()'):
+                return GameStatus.ONSALE
+            elif ehtml.xpath('//div[@class="game_area_comingsoon game_area_bubble"]/text()'):
+                return GameStatus.COMING
+            elif ehtml.xpath('//div[@class="btn_addtocart"]/a/span/text()'):
+                return GameStatus.FREE
             else:
-                current_number = origin_number = 0
-                country = 'CN'
+                return GameStatus.UNAVAILABLE
 
-        except IndexError:
+        prices = {}
+        game_status = check_on_sale(ehtml)
+        print(game_status)
+        if game_status == GameStatus.NORMAL:
+            price = ehtml.xpath('//div[@class="game_purchase_price price"]/text()')[0]
+            price = self.strip_strings([price])[0]
+            unit, number = price.split(' ')
+
+            current_number = origin_number = number
+            country = price_unit.get(unit)
+        elif game_status == GameStatus.ONSALE:
             origin_price = ehtml.xpath('//div[@class="discount_original_price"]/text()')[0]
             discount_price = ehtml.xpath('//div[@class="discount_final_price"]/text()')[0]
 
-            origin_unit, origin_number = c.strip_strings([origin_price])[0].split(' ')
-            current_unit, current_number = c.strip_strings([discount_price])[0].split(' ')
+            origin_unit, origin_number = self.strip_strings([origin_price])[0].split(' ')
+            current_unit, current_number = self.strip_strings([discount_price])[0].split(' ')
             country = price_unit.get(origin_unit)
+        elif game_status == GameStatus.COMING:
+            country = 'CN'
+            current_number = origin_number = 'Coming Soon'
+        elif game_status == GameStatus.FREE:
+            country = 'CN'
+            current_number = origin_number = 'FREE'
+        else:
+            country = 'CN'
+            current_number = origin_number = 'OFF SALE'
 
         prices[country] = {'current': current_number, 'origin': origin_number}
         return prices
@@ -176,7 +209,10 @@ class GameDetailCrawler(Crawler):
                 for req_item in req_list:
                     req_string = req_item.xpath('string()').split(':', 1)
                     req_string = self.clean_strings(req_string)
-                    os_reqs_list[req_string[0]] = req_string[1]
+                    if len(req_string) == 2:
+                        os_reqs_list[req_string[0]] = req_string[1]
+                    else:
+                        os_reqs_list[req_string[0]] = None
 
                 os_reqs[suit_name] = os_reqs_list
 
@@ -214,4 +250,5 @@ class GameDetailCrawler(Crawler):
     def parse(self, data):
         html = etree.HTML(data)
         data = self.parse_all(html)
+        print(data)
         return data

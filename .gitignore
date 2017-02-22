@@ -1,7 +1,14 @@
 # Add any directories, files, or patterns you don't want to be tracked by version control
 
-result
-te.*
-
+# for idea and python
 *.pyc
 .idea
+
+# for debug
+te.*
+
+# for log
+*.log
+
+# for data
+*.sqlite

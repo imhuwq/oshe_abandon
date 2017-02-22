@@ -11,7 +11,7 @@ from storer.sa_store import SqlalchemyStore
 
 
 class Crawler:
-    def __init__(self, targets=None, workers=4, storer_cls=None):
+    def __init__(self, targets=None, workers=16, storer_cls=None):
 
         self.targets = set(targets) if targets else set()
 
@@ -28,12 +28,15 @@ class Crawler:
         self.workers = workers
 
         self.timestamp = int(time.time())
-        self.log_file = '%s.log' % self.timestamp
+        self.err_log = '%s.log' % self.timestamp
 
         cur_dir = os.path.abspath(os.path.dirname(__file__))
-        self.log_file = os.path.join(cur_dir, '%s.log' % self.timestamp)
+        self.err_log = os.path.join(cur_dir, '%s_err.log' % self.timestamp)
+        self.std_log = os.path.join(cur_dir, '%s_std.log' % self.timestamp)
 
         self.storer_cls = storer_cls or SqlalchemyStore
+
+        self.round = 0
 
     def strip_strings(self, strings):
         result = []
@@ -63,7 +66,8 @@ class Crawler:
             'birthtime': '667753201',
             'lastagecheckage': '1-March-1991',
             'Steam_Language': 'english',
-            'steamCountry': 'CN'
+            'steamCountry': 'CN',
+            'mature_content': '1'
         }
 
         raw = requests.get(target, cookies=cookies).text
@@ -85,30 +89,35 @@ class Crawler:
         self.store(data, target)
 
     def start(self, max_retries=3):
-        while self.searching and max_retries > 0:
-            with futures.ThreadPoolExecutor(max_workers=self.workers) as executor:
-                future_to_target = {executor.submit(self.task_chain, target): target
-                                    for target in self.searching}
-                self.searching = set()
-                for future in futures.as_completed(future_to_target):
-                    target = future_to_target[future]
-                    try:
-                        future.result()
-                    except Exception as exc:
-                        self.log(target, exc)
-                        self.searching.add(target)
-                        print('[BAD]: <%s> "%s" ' % (target, exc))
-                    else:
-                        self.succeed.add(target)
-                        print('[OK]: <%s>' % target)
-
-            max_retries -= 1
+        print('')
+        print(self.__class__.__name__ + ' started!')
+        print('')
+        with futures.ThreadPoolExecutor(max_workers=self.workers) as executor:
+            future_to_target = {executor.submit(self.task_chain, target): target
+                                for target in self.searching}
+            self.searching = set()
+            for future in futures.as_completed(future_to_target):
+                target = future_to_target[future]
+                try:
+                    future.result()
+                except Exception as exc:
+                    self.log_err(target, exc)
+                    self.searching.add(target)
+                    self.log_std('[BAD]: <%s> "%s" ' % (target, exc))
+                else:
+                    self.succeed.add(target)
+                    self.log_std('[OK]: <%s>' % target)
 
         self.failed, self.searching = self.searching, set()
 
-    def log(self, target, exc):
-        with open(self.log_file, 'a') as f:
+    def log_err(self, target, exc):
+        with open(self.err_log, 'a') as f:
             log_text = '%s\n%s\n%s\n' % (datetime.now(), target, exc)
             f.write(log_text)
             traceback.print_exc(file=f)
             f.write('\n\n')
+
+    def log_std(self, msg):
+        with open(self.std_log, 'a') as f:
+            f.write(msg)
+            f.write('\n')
