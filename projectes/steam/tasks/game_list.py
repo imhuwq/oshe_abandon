@@ -1,12 +1,13 @@
 from lxml import etree
 
-from crawler.crawler_base import Crawler
+from oshe.task import Task
+from oshe.parse.xpath_parse import XpathParse
 
 
-class GameListCrawler(Crawler):
-    def __init__(self, targets, *args, **kwargs):
+class GameListParse(XpathParse):
+    def __init__(self):
         self.base = 'http://store.steampowered.com/app/'
-        super(GameListCrawler, self).__init__(targets, *args, **kwargs)
+        super(GameListParse, self).__init__()
 
     def parse(self, data):
         html = etree.HTML(data)
@@ -17,6 +18,10 @@ class GameListCrawler(Crawler):
         results = []
         for game_id in game_ids:
             result = self.base + game_id
-            self.results.append(result)
             results.append(result)
         return results
+
+
+class GameListTask(Task):
+    def __init__(self, targets, *args, parse_cls=GameListParse, **kwargs):
+        super(GameListTask, self).__init__(targets, *args, parse_cls=GameListParse, **kwargs)

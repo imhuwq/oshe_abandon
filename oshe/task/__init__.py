@@ -1,18 +1,19 @@
-import re
 import os
+import re
 import time
 import traceback
-from datetime import datetime
+from enum import Enum
 from concurrent import futures
+from datetime import datetime
 
-import requests
+from oshe.store.sa_store import SqlalchemyStore
+from oshe.crawl.requests_crawl import RequestsCrawl
+from oshe.parse.xpath_parse import XpathParse
 
-from storer.sa_store import SqlalchemyStore
 
-
-class Crawler:
-    def __init__(self, targets=None, workers=16, storer_cls=None):
-
+class Task:
+    def __init__(self, targets, workers=16, crawler_cls=None, parse_cls=None, storer_cls=None, db_uri=None,
+                 log_dir=None):
         self.targets = set(targets) if targets else set()
 
         self.results = list()
@@ -30,36 +31,20 @@ class Crawler:
         self.timestamp = int(time.time())
         self.err_log = '%s.log' % self.timestamp
 
-        cur_dir = os.path.abspath(os.path.dirname(__file__))
-        self.err_log = os.path.join(cur_dir, '%s_err.log' % self.timestamp)
-        self.std_log = os.path.join(cur_dir, '%s_std.log' % self.timestamp)
+        self.log_dir = log_dir or os.path.abspath(os.path.dirname(__file__))
+        self.err_log = os.path.join(self.log_dir, '%s_err.log' % self.timestamp)
+        self.std_log = os.path.join(self.log_dir, '%s_std.log' % self.timestamp)
+
+        self.parse_cls = parse_cls or XpathParse
 
         self.storer_cls = storer_cls or SqlalchemyStore
+        self.db_uri = db_uri
 
-        self.round = 0
+        self.crawler_cls = crawler_cls or RequestsCrawl
 
-    def strip_strings(self, strings):
-        result = []
-        pattern = re.compile(r'^([\t\n\s]*)(?P<item>.*?)([\t\n\s]*)$')
-        for item in strings:
-            item = pattern.sub(r'\g<item>', item)
-            result.append(item)
-        return result
-
-    def clean_strings(self, strings):
-        strings = self.strip_strings(strings)
-
-        def string_is_meaningful(string):
-            if len(string) == 1:
-                has_meaningful_char = re.match(r'[a-zA-Z0-9]', string)
-                if has_meaningful_char:
-                    return True
-            elif len(string) > 1:
-                return True
-            return False
-
-        result = [string for string in strings if string_is_meaningful(string)]
-        return result
+        self.kwargs = {'workers': self.workers, 'crawler_cls': self.crawler_cls,
+                       'parse_cls': self.parse_cls, 'storer_cls': self.storer_cls,
+                       'db_uri': db_uri, 'log_dir': self.log_dir}
 
     def crawl(self, target):
         cookies = {
@@ -70,22 +55,22 @@ class Crawler:
             'mature_content': '1'
         }
 
-        raw = requests.get(target, cookies=cookies).text
+        crawler = self.crawler_cls(cookies=cookies)
+        raw = crawler.get(target)
         return raw
 
     def parse(self, raw):
-        data = raw
+        data = self.parse_cls().parse(raw)
+        self.results.extend(data)
         return data
 
     def store(self, data, target):
-        store = self.storer_cls()
+        store = self.storer_cls(self.db_uri)
         store.store(self.__class__.__name__, target, data)
 
     def task_chain(self, target):
         raw = self.crawl(target)
         data = self.parse(raw)
-        if data is None:
-            data = self.results
         self.store(data, target)
 
     def start(self, max_retries=3):
@@ -109,6 +94,7 @@ class Crawler:
                     self.log_std('[OK]: <%s>' % target)
 
         self.failed, self.searching = self.searching, set()
+        return (self.results,), self.kwargs
 
     def log_err(self, target, exc):
         with open(self.err_log, 'a') as f:
@@ -118,6 +104,7 @@ class Crawler:
             f.write('\n\n')
 
     def log_std(self, msg):
+        print(self.log_dir)
         with open(self.std_log, 'a') as f:
             f.write(msg)
             f.write('\n')

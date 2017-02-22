@@ -1,6 +1,9 @@
+from enum import Enum
+
 from lxml import etree
 
-from enum import Enum
+from oshe.task import Task
+from oshe.parse.xpath_parse import XpathParse
 
 
 class GameStatus(Enum):
@@ -11,12 +14,9 @@ class GameStatus(Enum):
     COMING = 3
 
 
-from crawler.crawler_base import Crawler
-
-
-class GameDetailCrawler(Crawler):
-    def __init__(self, targets, *args, **kwargs):
-        super(GameDetailCrawler, self).__init__(targets, *args, **kwargs)
+class GameDetailParse(XpathParse):
+    def __init__(self):
+        super(GameDetailParse, self).__init__()
 
     def parse_title(self, ehtml):
         details_container = ehtml.xpath('//div[@class="block_content_inner"]')[-1]
@@ -24,7 +24,6 @@ class GameDetailCrawler(Crawler):
         texts = detail_block.xpath('text()')
         texts = self.clean_strings(texts)
         return texts[0]
-
 
     def parse_price(self, ehtml):
         price_unit = {
@@ -250,5 +249,9 @@ class GameDetailCrawler(Crawler):
     def parse(self, data):
         html = etree.HTML(data)
         data = self.parse_all(html)
-        print(data)
-        return data
+        return [data]
+
+
+class GameDetailTask(Task):
+    def __init__(self, targets, **kwargs):
+        super(GameDetailTask, self).__init__(targets, parse_cls=GameDetailParse, **kwargs)
