@@ -1,4 +1,3 @@
-import re
 from . import ParseBase
 
 
@@ -7,4 +6,5 @@ class XpathParse(ParseBase):
         super(XpathParse, self).__init__()
 
     def parse(self, data):
-        return data
+        results = targets = data
+        return results, targets

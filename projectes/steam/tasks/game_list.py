@@ -1,6 +1,5 @@
 from lxml import etree
 
-from oshe.task import Task
 from oshe.parse.xpath_parse import XpathParse
 
 
@@ -19,9 +18,4 @@ class GameListParse(XpathParse):
         for game_id in game_ids:
             result = self.base + game_id
             results.append(result)
-        return results
-
-
-class GameListTask(Task):
-    def __init__(self, targets, *args, parse_cls=GameListParse, **kwargs):
-        super(GameListTask, self).__init__(targets, *args, parse_cls=GameListParse, **kwargs)
+        return results, results

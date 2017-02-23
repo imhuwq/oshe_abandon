@@ -1,22 +1,22 @@
 import os
-import re
 import time
 import traceback
-from enum import Enum
 from concurrent import futures
 from datetime import datetime
 
 from oshe.store.sa_store import SqlalchemyStore
 from oshe.crawl.requests_crawl import RequestsCrawl
-from oshe.parse.xpath_parse import XpathParse
 
 
 class Task:
-    def __init__(self, targets, workers=16, crawler_cls=None, parse_cls=None, storer_cls=None, db_uri=None,
+    def __init__(self, targets, name=None, workers=16, crawl_cls=None, parse_cls=None, store_cls=None, db_uri=None,
                  log_dir=None):
-        self.targets = set(targets) if targets else set()
+        self.targets = list(targets) if targets else list()
+
+        self.name = name or self.__class__.__name__
 
         self.results = list()
+        self.next_targets = list()
 
         self.searching = self.targets.copy()
 
@@ -32,50 +32,44 @@ class Task:
         self.err_log = '%s.log' % self.timestamp
 
         self.log_dir = log_dir or os.path.abspath(os.path.dirname(__file__))
-        self.err_log = os.path.join(self.log_dir, '%s_err.log' % self.timestamp)
-        self.std_log = os.path.join(self.log_dir, '%s_std.log' % self.timestamp)
+        self.err_log = os.path.join(self.log_dir, '%s_%s_err.log' % (self.name, self.timestamp))
+        self.std_log = os.path.join(self.log_dir, '%s_%s_std.log' % (self.name, self.timestamp))
 
-        self.parse_cls = parse_cls or XpathParse
+        self.parse_cls = parse_cls
 
-        self.storer_cls = storer_cls or SqlalchemyStore
+        self.store_cls = store_cls or SqlalchemyStore
         self.db_uri = db_uri
 
-        self.crawler_cls = crawler_cls or RequestsCrawl
+        self.crawl_cls = crawl_cls or RequestsCrawl
 
-        self.kwargs = {'workers': self.workers, 'crawler_cls': self.crawler_cls,
-                       'parse_cls': self.parse_cls, 'storer_cls': self.storer_cls,
-                       'db_uri': db_uri, 'log_dir': self.log_dir}
+        self.kwargs = {'workers': self.workers, 'crawl_cls': self.crawl_cls,
+                       'parse_cls': self.parse_cls, 'store_cls': self.store_cls,
+                       'db_uri': self.db_uri, 'log_dir': self.log_dir}
 
     def crawl(self, target):
-        cookies = {
-            'birthtime': '667753201',
-            'lastagecheckage': '1-March-1991',
-            'Steam_Language': 'english',
-            'steamCountry': 'CN',
-            'mature_content': '1'
-        }
-
-        crawler = self.crawler_cls(cookies=cookies)
+        crawler = self.crawl_cls()
         raw = crawler.get(target)
         return raw
 
     def parse(self, raw):
-        data = self.parse_cls().parse(raw)
-        self.results.extend(data)
-        return data
+        current_results, next_targets = self.parse_cls().parse(raw)
+        return current_results, next_targets
 
     def store(self, data, target):
-        store = self.storer_cls(self.db_uri)
-        store.store(self.__class__.__name__, target, data)
+        store = self.store_cls(self.db_uri)
+        store.store(self.name, target, data)
 
     def task_chain(self, target):
         raw = self.crawl(target)
-        data = self.parse(raw)
-        self.store(data, target)
 
-    def start(self, max_retries=3):
+        current_result, next_targets = self.parse(raw)
+
+        self.next_targets.extend(next_targets)
+        self.store(current_result, target)
+
+    def start(self):
         print('')
-        print(self.__class__.__name__ + ' started!')
+        print('%s started! <%s> to go!' % (self.name, len(self.targets)))
         print('')
         with futures.ThreadPoolExecutor(max_workers=self.workers) as executor:
             future_to_target = {executor.submit(self.task_chain, target): target
@@ -88,13 +82,14 @@ class Task:
                 except Exception as exc:
                     self.log_err(target, exc)
                     self.searching.add(target)
-                    self.log_std('[BAD]: <%s> "%s" ' % (target, exc))
+                    msg = '[BAD]: <%s> "%s" ' % (target, exc)
+                    self.log_err(target, msg)
                 else:
                     self.succeed.add(target)
-                    self.log_std('[OK]: <%s>' % target)
+                    msg = '[OK]: <%s>' % target
+                    self.log_std(msg)
 
-        self.failed, self.searching = self.searching, set()
-        return (self.results,), self.kwargs
+        return self.next_targets
 
     def log_err(self, target, exc):
         with open(self.err_log, 'a') as f:
@@ -104,7 +99,6 @@ class Task:
             f.write('\n\n')
 
     def log_std(self, msg):
-        print(self.log_dir)
         with open(self.std_log, 'a') as f:
             f.write(msg)
             f.write('\n')

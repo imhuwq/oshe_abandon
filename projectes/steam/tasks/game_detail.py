@@ -2,7 +2,6 @@ from enum import Enum
 
 from lxml import etree
 
-from oshe.task import Task
 from oshe.parse.xpath_parse import XpathParse
 
 
@@ -35,7 +34,7 @@ class GameDetailParse(XpathParse):
         def check_on_sale(html):
             if ehtml.xpath('//div[@class="game_purchase_price price"]/text()'):
                 price = ehtml.xpath('//div[@class="game_purchase_price price"]/text()')[0]
-                if self.clean_strings([price])[0] == 'Free':
+                if 'free' in self.clean_strings([price])[0].lower():
                     return GameStatus.FREE
                 return GameStatus.NORMAL
             elif html.xpath('//div[@class="discount_final_price"]/text()'):
@@ -49,7 +48,6 @@ class GameDetailParse(XpathParse):
 
         prices = {}
         game_status = check_on_sale(ehtml)
-        print(game_status)
         if game_status == GameStatus.NORMAL:
             price = ehtml.xpath('//div[@class="game_purchase_price price"]/text()')[0]
             price = self.strip_strings([price])[0]
@@ -249,9 +247,4 @@ class GameDetailParse(XpathParse):
     def parse(self, data):
         html = etree.HTML(data)
         data = self.parse_all(html)
-        return [data]
-
-
-class GameDetailTask(Task):
-    def __init__(self, targets, **kwargs):
-        super(GameDetailTask, self).__init__(targets, parse_cls=GameDetailParse, **kwargs)
+        return [data], []
