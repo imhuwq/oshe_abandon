@@ -1,9 +1,13 @@
 from oshe.crawl.requests_crawl import RequestsCrawl
+from oshe.parse.xpath_parse import XpathParse
+from oshe.store.sa_store import SqlalchemyStore
+
+from steam import DATABASE_URI
 
 
-class SteamCraw(RequestsCrawl):
+class SteamCrawl(RequestsCrawl):
     def __init__(self):
-        super(SteamCraw, self).__init__()
+        super(SteamCrawl, self).__init__()
 
         self.headers = {
             'user-agent': 'User-Agent:Mozilla/5.0 (X11; Linux x86_64) '
@@ -27,3 +31,8 @@ class SteamCraw(RequestsCrawl):
 
         raw = self.requests.get(url, headers=headers, cookies=cookies, timeout=(5, 21), **kwargs).text
         return raw
+
+
+SteamParse = type('SteamParse', (XpathParse,), {})
+
+SteamStore = type('SteamStore', (SqlalchemyStore,), dict(db_url=DATABASE_URI))

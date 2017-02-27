@@ -1,4 +1,3 @@
-import os
 import json
 
 from sqlalchemy import create_engine, Column, Integer, String, Text
@@ -19,7 +18,12 @@ class Data(Model):
 
 
 class SqlalchemyStore(Store):
-    def __init__(self, db_uri):
+    db_uri = None
+
+    def __init__(self, db_uri=None):
+        if db_uri is None:
+            if self.db_uri is None:
+                raise Exception('Database URI has not been specified')
         engine = create_engine(db_uri)
         session = scoped_session(sessionmaker(bind=engine))
         self.engine = engine

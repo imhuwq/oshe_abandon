@@ -1,9 +1,11 @@
 from lxml import etree
 
-from oshe.parse.xpath_parse import XpathParse
+from .task_bases import SteamCrawl, SteamParse, SteamStore
+
+GameIndexCrawl = type('GameIndexCrawl', (SteamCrawl,), {})
 
 
-class GameIndexParse(XpathParse):
+class GameIndexParse(SteamParse):
     def __init__(self):
         super(GameIndexParse, self).__init__()
         self.base = 'http://store.steampowered.com/search/?sort_by=Released_DESC'
@@ -18,4 +20,7 @@ class GameIndexParse(XpathParse):
         for page in range(1, last_page + 1):
             result = '%s&page=%d' % (self.base, page)
             results.append(result)
-        return results, results
+        return results
+
+
+GameIndexStore = type('GameIndexStore', (SteamStore,), {})

@@ -2,7 +2,9 @@ from enum import Enum
 
 from lxml import etree
 
-from oshe.parse.xpath_parse import XpathParse
+from .task_bases import SteamCrawl, SteamParse, SteamStore
+
+GameDetailCrawl = type('GameDetailCrawl', (SteamCrawl,), {})
 
 
 class GameStatus(Enum):
@@ -13,7 +15,7 @@ class GameStatus(Enum):
     COMING = 3
 
 
-class GameDetailParse(XpathParse):
+class GameDetailParse(SteamParse):
     def __init__(self):
         super(GameDetailParse, self).__init__()
 
@@ -247,4 +249,7 @@ class GameDetailParse(XpathParse):
     def parse(self, data):
         html = etree.HTML(data)
         data = self.parse_all(html)
-        return [data], []
+        return [data]
+
+
+GameDetailStore = type('GameDetailStore', (SteamStore,), {})

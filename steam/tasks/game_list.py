@@ -1,11 +1,13 @@
 from lxml import etree
 
-from oshe.parse.xpath_parse import XpathParse
+from .task_bases import SteamCrawl, SteamParse, SteamStore
+
+GameListCrawl = type('GameListCrawl', (SteamCrawl,), {})
 
 
-class GameListParse(XpathParse):
+class GameListParse(SteamParse):
     def __init__(self):
-        self.base = 'http://store.steampowered.com/app/'
+        self.base = 'http://store.steampowered.com/schedule/'
         super(GameListParse, self).__init__()
 
     def parse(self, data):
@@ -18,4 +20,7 @@ class GameListParse(XpathParse):
         for game_id in game_ids:
             result = self.base + game_id
             results.append(result)
-        return results, results
+        return results
+
+
+GameListStore = type('GameListlStore', (SteamStore,), {})
